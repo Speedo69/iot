@@ -24,6 +24,21 @@ namespace Iot.Device.GrovePiDevice.Sensors
     /// </summary>
     public class LedBar
     {
+        /// <summary>
+        /// Only Digital ports only but you can't create more than 4 bars as each bar is using 2 Pins
+        /// So you have to have at least 1 Grove Port empty between 2 bars
+        /// </summary>
+        public static List<GrovePort> SupportedPorts => new List<GrovePort>()
+        {
+            GrovePort.DigitalPin2,
+            GrovePort.DigitalPin3,
+            GrovePort.DigitalPin4,
+            GrovePort.DigitalPin5,
+            GrovePort.DigitalPin6,
+            GrovePort.DigitalPin7,
+            GrovePort.DigitalPin8,
+        };
+
         private GrovePi _grovePi;
         private byte _level;
         private LedBarOrientation _orientation;
@@ -152,7 +167,7 @@ namespace Iot.Device.GrovePiDevice.Sensors
         /// <param name="led">The led from 0 to 10</param>
         public void ToggleLeds(byte led)
         {
-            led = Math.Clamp(led, (byte)0, (byte)10);
+            led = MathExtensions.Clamp(led, (byte)0, (byte)10);
             _grovePi.WriteCommand(GrovePiCommand.LedBarToggleOneLed, _port, led, 0);
         }
 
@@ -166,20 +181,5 @@ namespace Iot.Device.GrovePiDevice.Sensors
         /// Get the name Led Bar
         /// </summary>
         public string SensorName => "Led Bar";
-
-        /// <summary>
-        /// Only Digital ports only but you can't create more than 4 bars as each bar is using 2 Pins
-        /// So you have to have at least 1 Grove Port empty between 2 bars
-        /// </summary>
-        public static List<GrovePort> SupportedPorts => new List<GrovePort>()
-        {
-            GrovePort.DigitalPin2,
-            GrovePort.DigitalPin3,
-            GrovePort.DigitalPin4,
-            GrovePort.DigitalPin5,
-            GrovePort.DigitalPin6,
-            GrovePort.DigitalPin7,
-            GrovePort.DigitalPin8,
-        };
     }
 }

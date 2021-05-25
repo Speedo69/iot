@@ -66,7 +66,7 @@ namespace Iot.Device.BoardLed
         {
             Name = name;
             Initialize();
-#if NETCOREAPP2_1
+#if !NET5_0_OR_GREATER
             if (_brightnessReader is null ||
                 _brightnessWriter is null ||
                 _maxBrightnessReader is null ||
@@ -76,19 +76,6 @@ namespace Iot.Device.BoardLed
                 throw new Exception($"{nameof(BoardLed)} incorrectly configured");
             }
 #endif
-        }
-
-        /// <summary>
-        /// Get all triggers of current LED.
-        /// </summary>
-        /// <returns>The name of triggers.</returns>
-        public IEnumerable<string> EnumerateTriggers()
-        {
-            _triggerReader.BaseStream.Position = 0;
-
-            // Remove selected chars
-            return Regex.Replace(_triggerReader.ReadToEnd(), @"\[|\]", string.Empty)
-                .Split(' ');
         }
 
         /// <summary>
@@ -105,6 +92,19 @@ namespace Iot.Device.BoardLed
                 .Select(x => new BoardLed(x.Name));
         }
 
+        /// <summary>
+        /// Get all triggers of current LED.
+        /// </summary>
+        /// <returns>The name of triggers.</returns>
+        public IEnumerable<string> EnumerateTriggers()
+        {
+            _triggerReader.BaseStream.Position = 0;
+
+            // Remove selected chars
+            return Regex.Replace(_triggerReader.ReadToEnd(), @"\[|\]", string.Empty)
+                .Split(' ');
+        }
+
         private int GetBrightness()
         {
             _brightnessReader.BaseStream.Position = 0;
@@ -119,7 +119,8 @@ namespace Iot.Device.BoardLed
 
         private void SetBrightness(int value)
         {
-            value = Math.Clamp(value, 0, 255);
+            value = MathExtensions.Clamp(value, 0, 255);
+
             _brightnessWriter.BaseStream.SetLength(0);
             _brightnessWriter.Write(value);
             _brightnessWriter.Flush();
@@ -145,7 +146,7 @@ namespace Iot.Device.BoardLed
             _triggerWriter.Flush();
         }
 
-#if !NETCOREAPP2_1
+#if NET5_0_OR_GREATER
         [MemberNotNull(nameof(_brightnessReader), nameof(_brightnessWriter), nameof(_triggerReader), nameof(_triggerWriter), nameof(_maxBrightnessReader))]
 #endif
         private void Initialize()

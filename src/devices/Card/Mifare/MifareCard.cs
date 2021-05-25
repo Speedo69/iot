@@ -3,7 +3,9 @@
 
 using System;
 using System.Linq;
+using Iot.Device.Common;
 using Iot.Device.Ndef;
+using Microsoft.Extensions.Logging;
 
 namespace Iot.Device.Card.Mifare
 {
@@ -13,8 +15,6 @@ namespace Iot.Device.Card.Mifare
     /// </summary>
     public class MifareCard
     {
-        // This is the actual RFID reader
-        private CardTransceiver _rfid;
         private static readonly byte[] Mifare1KBlock1 = new byte[] { 0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1 };
         private static readonly byte[] Mifare1KBlock2 = new byte[] { 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1 };
         private static readonly byte[] Mifare1KBlock4 = new byte[] { 0x03, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -25,6 +25,11 @@ namespace Iot.Device.Card.Mifare
         private static readonly byte[] StaticDefaultKeyB = new byte[6] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
         private static readonly byte[] StaticDefaultFirstBlockNdefKeyA = new byte[6] { 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5 };
         private static readonly byte[] StaticDefaultBlocksNdefKeyA = new byte[6] { 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 };
+
+        // This is the actual RFID reader
+        private CardTransceiver _rfid;
+
+        private ILogger _logger;
 
         /// <summary>
         /// Default Key A
@@ -97,6 +102,7 @@ namespace Iot.Device.Card.Mifare
         {
             _rfid = rfid;
             Target = target;
+            _logger = this.GetCurrentClassLogger();
         }
 
         /// <summary>
@@ -112,7 +118,7 @@ namespace Iot.Device.Card.Mifare
             }
 
             var ret = _rfid.Transceive(Target, Serialize(), dataOut.AsSpan());
-            LogInfo.Log($"{nameof(RunMifareCardCommand)}: {Command}, Target: {Target}, Data: {BitConverter.ToString(Serialize())}, Success: {ret}, Dataout: {BitConverter.ToString(dataOut)}", LogLevel.Debug);
+            _logger.LogDebug($"{nameof(RunMifareCardCommand)}: {Command}, Target: {Target}, Data: {BitConverter.ToString(Serialize())}, Success: {ret}, Dataout: {BitConverter.ToString(dataOut)}");
             if ((ret > 0) && (Command == MifareCardCommand.Read16Bytes))
             {
                 Data = dataOut;
@@ -570,7 +576,7 @@ namespace Iot.Device.Card.Mifare
         /// </summary>
         /// <param name="sectorNumber">Input sector number</param>
         /// <returns>The number of blocks for this specific sector</returns>
-        public byte GetNumberBlocks(byte sectorNumber) => sectorNumber < 32 ? 4 : 16;
+        public byte GetNumberBlocks(byte sectorNumber) => sectorNumber < 32 ? (byte)4 : (byte)16;
 
         /// <summary>
         /// Get the number of blocks for a specific sector
@@ -806,7 +812,7 @@ namespace Iot.Device.Card.Mifare
             authOk &= WriteDataBlock(2);
             authOk &= AuthenticateBlockKeyB(keyFormat, 3);
             Data = new byte[] { 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77, 088, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            Data[9] = Capacity == MifareCardCapacity.Mifare1K ? 0xC1 : 0xC2;
+            Data[9] = Capacity == MifareCardCapacity.Mifare1K ? (byte)0xC1 : (byte)0xC2;
             keyFormat.CopyTo(Data, 10);
             authOk &= WriteDataBlock(3);
             authOk &= AuthenticateBlockKeyB(keyFormat, 4);

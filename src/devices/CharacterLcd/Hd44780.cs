@@ -3,7 +3,7 @@
 
 using System;
 using System.Buffers;
-using System.Drawing;
+using SixLabors.ImageSharp;
 
 namespace Iot.Device.CharacterLcd
 {
@@ -103,18 +103,13 @@ namespace Iot.Device.CharacterLcd
             _displayControl |= DisplayControl.DisplayOn;
             _displayMode |= DisplayEntryMode.Increment;
 
-            ReadOnlySpan<byte> commands = stackalloc byte[]
-            {
-                // Function must be set first to ensure that we always have the basic
-                // instruction set selected. (See PCF2119x datasheet Function_set note
-                // for one documented example of where this is necessary.)
-                (byte)_displayFunction,
-                (byte)_displayControl,
-                (byte)_displayMode,
-                ClearDisplayCommand
-            };
-
-            SendCommands(commands);
+            // Function must be set first to ensure that we always have the basic
+            // instruction set selected. (See PCF2119x datasheet Function_set note
+            // for one documented example of where this is necessary.)
+            SendCommandAndWait((byte)_displayFunction);
+            SendCommandAndWait((byte)_displayControl);
+            SendCommandAndWait((byte)_displayMode);
+            SendCommandAndWait(ClearDisplayCommand);
         }
 
         /// <summary>
@@ -139,10 +134,24 @@ namespace Iot.Device.CharacterLcd
         protected void SendCommand(byte command) => _lcdInterface.SendCommand(command);
 
         /// <summary>
+        /// The initialization sequence and some other complex commands should be sent with delays, or the display may
+        /// behave unexpectedly. It may show random, blinking characters
+        /// or display text very faintly only.
+        /// </summary>
+        /// <param name="command">The command to send</param>
+        protected void SendCommandAndWait(byte command) => _lcdInterface.SendCommandAndWait(command);
+
+        /// <summary>
         /// Sends data to the device
         /// </summary>
         /// <param name="values">Data to be send to the device</param>
         protected void SendData(ReadOnlySpan<byte> values) => _lcdInterface.SendData(values);
+
+        /// <summary>
+        /// Sends data to the device
+        /// </summary>
+        /// <param name="values">Data to be send to the device</param>
+        protected void SendData(ReadOnlySpan<char> values) => _lcdInterface.SendData(values);
 
         /// <summary>
         /// Send commands to the device
@@ -253,7 +262,7 @@ namespace Iot.Device.CharacterLcd
         public bool DisplayOn
         {
             get => (_displayControl & DisplayControl.DisplayOn) > 0;
-            set => SendCommand((byte)(value ? _displayControl |= DisplayControl.DisplayOn
+            set => SendCommandAndWait((byte)(value ? _displayControl |= DisplayControl.DisplayOn
                 : _displayControl &= ~DisplayControl.DisplayOn));
         }
 
@@ -263,7 +272,7 @@ namespace Iot.Device.CharacterLcd
         public bool UnderlineCursorVisible
         {
             get => (_displayControl & DisplayControl.CursorOn) > 0;
-            set => SendCommand((byte)(value ? _displayControl |= DisplayControl.CursorOn
+            set => SendCommandAndWait((byte)(value ? _displayControl |= DisplayControl.CursorOn
                 : _displayControl &= ~DisplayControl.CursorOn));
         }
 
@@ -273,7 +282,7 @@ namespace Iot.Device.CharacterLcd
         public bool BlinkingCursorVisible
         {
             get => (_displayControl & DisplayControl.BlinkOn) > 0;
-            set => SendCommand((byte)(value ? _displayControl |= DisplayControl.BlinkOn
+            set => SendCommandAndWait((byte)(value ? _displayControl |= DisplayControl.BlinkOn
                 : _displayControl &= ~DisplayControl.BlinkOn));
         }
 
@@ -283,7 +292,7 @@ namespace Iot.Device.CharacterLcd
         public bool AutoShift
         {
             get => (_displayMode & DisplayEntryMode.DisplayShift) > 0;
-            set => SendCommand((byte)(value ? _displayMode |= DisplayEntryMode.DisplayShift
+            set => SendCommandAndWait((byte)(value ? _displayMode |= DisplayEntryMode.DisplayShift
                 : _displayMode &= ~DisplayEntryMode.DisplayShift));
         }
 
@@ -293,7 +302,7 @@ namespace Iot.Device.CharacterLcd
         public bool Increment
         {
             get => (_displayMode & DisplayEntryMode.Increment) > 0;
-            set => SendCommand((byte)(value ? _displayMode |= DisplayEntryMode.Increment
+            set => SendCommandAndWait((byte)(value ? _displayMode |= DisplayEntryMode.Increment
                 : _displayMode &= ~DisplayEntryMode.Increment));
         }
 
@@ -358,7 +367,7 @@ namespace Iot.Device.CharacterLcd
         /// </remarks>
         /// <param name="location">Should be between 0 and 7</param>
         /// <param name="characterMap">Provide an array of 8 bytes containing the pattern</param>
-        public void CreateCustomCharacter(byte location, ReadOnlySpan<byte> characterMap)
+        public void CreateCustomCharacter(int location, ReadOnlySpan<byte> characterMap)
         {
             if (location >= NumberOfCustomCharactersSupported)
             {
@@ -387,14 +396,13 @@ namespace Iot.Device.CharacterLcd
         /// </remarks>
         public void Write(string text)
         {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(text.Length);
+            Span<byte> buffer = stackalloc byte[text.Length];
             for (int i = 0; i < text.Length; ++i)
             {
                 buffer[i] = (byte)text[i];
             }
 
-            SendData(new ReadOnlySpan<byte>(buffer, 0, text.Length));
-            ArrayPool<byte>.Shared.Return(buffer);
+            SendData(buffer);
         }
 
         /// <summary>
@@ -402,7 +410,7 @@ namespace Iot.Device.CharacterLcd
         /// Used if character translation already took place
         /// </summary>
         /// <param name="text">Text to print</param>
-        public void Write(ReadOnlySpan<byte> text) => SendData(text);
+        public void Write(ReadOnlySpan<char> text) => SendData(text);
 
         /// <summary>
         /// Releases unmanaged resources used by Hd44780

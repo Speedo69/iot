@@ -8,11 +8,15 @@ using System.Device.I2c;
 using System.Device.Spi;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Iot.Device.Card;
 using Iot.Device.Card.CreditCardProcessing;
 using Iot.Device.Card.Mifare;
+using Iot.Device.Common;
 using Iot.Device.Pn532;
 using Iot.Device.Pn532.ListPassive;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 
 Pn532 pn532;
 
@@ -32,7 +36,16 @@ if (choiceInterface is not { KeyChar: '1' or '2' or '3' })
 Console.WriteLine("Do you want log level to Debug? Y/N");
 var debugLevelConsole = Console.ReadKey();
 Console.WriteLine();
-LogLevel debugLevel = debugLevelConsole is { KeyChar: 'Y' or 'y' } ? LogLevel.Debug : LogLevel.None;
+LogLevel debugLevel = debugLevelConsole is { KeyChar: 'Y' or 'y' } ? LogLevel.Debug : LogLevel.Information;
+
+var loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder.AddFilter(x => x >= debugLevel);
+    builder.AddConsole();
+});
+
+// Statically register our factory. Note that this must be done before instantiation of any class that wants to use logging.
+LogDispatcher.LoggerFactory = loggerFactory;
 
 if (choiceInterface is { KeyChar: '3' })
 {
@@ -49,18 +62,18 @@ if (choiceInterface is { KeyChar: '3' })
         return;
     }
 
-    pn532 = new Pn532(SpiDevice.Create(new SpiConnectionSettings(0)), pinSelect, logLevel: debugLevel);
+    pn532 = new Pn532(SpiDevice.Create(new SpiConnectionSettings(0) { DataFlow = DataFlow.LsbFirst, Mode = SpiMode.Mode0 }), pinSelect);
 }
 else if (choiceInterface is { KeyChar: '2' })
 {
-    pn532 = new Pn532(I2cDevice.Create(new I2cConnectionSettings(1, Pn532.I2cDefaultAddress)), debugLevel);
+    pn532 = new Pn532(I2cDevice.Create(new I2cConnectionSettings(1, Pn532.I2cDefaultAddress)));
 }
 else
 {
     Console.WriteLine("Please enter the serial port to use. ex: COM3 on Windows or /dev/ttyS0 on Linux");
 
     var device = Console.ReadLine();
-    pn532 = new Pn532(device!, debugLevel);
+    pn532 = new Pn532(device!);
 }
 
 if (pn532.FirmwareVersion is FirmwareVersion version)
@@ -76,6 +89,7 @@ if (pn532.FirmwareVersion is FirmwareVersion version)
     // To run tests, uncomment the next line
     // RunTests(pn532);
     ReadMiFare(pn532);
+    // TestGPIO(pn532);
 
     // To read Credit Cards, uncomment the next line
     // ReadCreditCard(pn532);
@@ -209,6 +223,35 @@ void ReadMiFare(Pn532 pn532)
     }
 }
 
+void TestGPIO(Pn532 pn532)
+{
+    Console.WriteLine("Turning Off Port 7!");
+    var ret = pn532.WriteGpio((Port7)0);
+
+    // Access GPIO
+    ret = pn532.ReadGpio(out Port3 p3, out Port7 p7, out OperatingMode l0L1);
+    Console.WriteLine($"P7: {p7}");
+    Console.WriteLine($"P3: {p3}");
+    Console.WriteLine($"L0L1: {l0L1} ");
+
+    var on = true;
+    for (var i = 0; i < 10; i++)
+    {
+        if (on)
+        {
+            p7 = Port7.P71;
+        }
+        else
+        {
+            p7 = 0;
+        }
+
+        ret = pn532.WriteGpio(p7);
+        Task.Delay(150).Wait();
+        on = !on;
+    }
+}
+
 void RunTests(Pn532 pn532)
 {
     Console.WriteLine(
@@ -240,7 +283,7 @@ void RunTests(Pn532 pn532)
 
     Console.WriteLine($"Are results same: {redSfrus.SequenceEqual(redSfrs)}");
     // Access GPIO
-    ret = pn532.ReadGpio(out Port7 p7, out Port3 p3, out OperatingMode l0L1);
+    ret = pn532.ReadGpio(out Port3 p3, out Port7 p7, out OperatingMode l0L1);
     Console.WriteLine($"P7: {p7}");
     Console.WriteLine($"P3: {p3}");
     Console.WriteLine($"L0L1: {l0L1} ");

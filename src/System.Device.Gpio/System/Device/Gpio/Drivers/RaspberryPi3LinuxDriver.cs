@@ -28,9 +28,10 @@ namespace System.Device.Gpio.Drivers
         private const string DeviceTreeRanges = "/proc/device-tree/soc/ranges";
         private const string ModelFilePath = "/proc/device-tree/model";
 
+        private static readonly object s_initializationLock = new object();
+
         private readonly PinState?[] _pinModes;
         private RegisterView* _registerViewPointer = null;
-        private static readonly object s_initializationLock = new object();
 
         private UnixDriver? _interruptDriver = null;
 
@@ -236,6 +237,13 @@ namespace System.Device.Gpio.Drivers
             {
                 SetInputPullMode(pinNumber, mode);
             }
+        }
+
+        protected internal override void SetPinMode(int pinNumber, PinMode mode, PinValue initialValue)
+        {
+            // On the Raspberry Pi, we can Write the out value even if the mode is something other than out. It will take effect once we change the mode
+            Write(pinNumber, initialValue);
+            SetPinMode(pinNumber, mode);
         }
 
         /// <summary>
